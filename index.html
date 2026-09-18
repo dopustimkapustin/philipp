@@ -2,82 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="theme-color" content="#000000">
   <title>Philipp AR</title>
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
-    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
-    .hint {
-      position: fixed;
-      z-index: 20;
-      left: 50%;
-      bottom: max(24px, env(safe-area-inset-bottom));
-      transform: translateX(-50%);
-      width: min(86vw, 420px);
-      padding: 12px 16px;
-      border-radius: 999px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.68);
-      font: 600 15px/1.25 system-ui, -apple-system, sans-serif;
-      text-align: center;
-      transition: opacity 220ms ease;
-      pointer-events: none;
-    }
-    .hint.hidden { opacity: 0; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; font-family: system-ui, -apple-system, sans-serif; }
+    video, canvas { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; object-fit: cover !important; background: transparent !important; }
+    a-scene { position: fixed !important; inset: 0 !important; z-index: 0; }
+    #start-ui { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: #080a0f; color: #fff; text-align: center; }
+    #start-card { width: min(84vw, 420px); }
+    #start-card h1 { margin: 0 0 12px; font-size: 32px; }
+    #status { margin: 0 0 24px; color: rgba(255,255,255,.72); line-height: 1.4; }
+    #start { border: 0; border-radius: 999px; padding: 16px 30px; background: #ff315f; color: #fff; font: 700 20px/1 system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    #start:disabled { opacity: .55; }
+    #hint { position: fixed; z-index: 20; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(86vw, 420px); padding: 12px 16px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.68); font: 600 15px/1.25 system-ui, -apple-system, sans-serif; text-align: center; transition: opacity 220ms ease; pointer-events: none; }
+    #hint.hidden { opacity: 0; }
+    #ar-video { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="hint" id="hint">Point the camera at the artwork</div>
+  <div id="start-ui">
+    <div id="start-card">
+      <h1>Philipp AR</h1>
+      <p id="status">Tap Start and allow camera access.</p>
+      <button id="start" type="button">Start AR</button>
+    </div>
+  </div>
+  <div id="hint">Point the camera at the artwork</div>
+
+  <video id="ar-video" src="./video.mp4" preload="metadata" muted loop playsinline webkit-playsinline crossorigin="anonymous"></video>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 1; warmupTolerance: 3; missTolerance: 10; filterMinCF: 0.0001; filterBeta: 0.001;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; maxTrack: 1; warmupTolerance: 3; missTolerance: 10; filterMinCF: 0.0001; filterBeta: 0.003;"
     color-space="sRGB"
-    renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true;"
+    embedded
+    renderer="alpha: true; antialias: true; colorManagement: true; physicallyCorrectLights: true"
+    background="transparent: true"
     vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-    loading-screen="enabled: false"
-    embedded>
-
-    <a-assets timeout="30000">
-      <video
-        id="ar-video"
-        src="./video.mp4"
-        preload="auto"
-        autoplay
-        muted
-        loop
-        playsinline
-        webkit-playsinline
-        crossorigin="anonymous"></video>
-    </a-assets>
-
+    device-orientation-permission-ui="enabled: false">
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
     <a-entity id="target" mindar-image-target="targetIndex: 0">
-      <a-video
-        src="#ar-video"
-        position="0 0 0.01"
-        width="1"
-        height="1"
-        material="shader: flat; transparent: false; side: double;"
-        rotation="0 0 0"></a-video>
+      <a-video src="#ar-video" position="0 0 0.01" width="1" height="1" rotation="0 0 0" material="shader: flat; transparent: false; side: double"></a-video>
     </a-entity>
   </a-scene>
 
   <script>
-    const video = document.querySelector('#ar-video');
-    const target = document.querySelector('#target');
-    const hint = document.querySelector('#hint');
+    const ui = document.getElementById('start-ui');
+    const startBtn = document.getElementById('start');
+    const status = document.getElementById('status');
+    const hint = document.getElementById('hint');
+    const video = document.getElementById('ar-video');
+    const target = document.getElementById('target');
+    const scene = document.querySelector('a-scene');
 
     video.muted = true;
     video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
 
-    const startVideo = () => video.play().catch(() => {
-      hint.textContent = 'Tap the screen once, then point at the artwork';
+    const waitLoaded = () => new Promise(resolve => {
+      if (scene.hasLoaded) return resolve();
+      scene.addEventListener('loaded', resolve, {once: true});
     });
+
+    startBtn.addEventListener('click', async () => {
+      startBtn.disabled = true;
+      status.textContent = 'Starting camera…';
+      try {
+        await waitLoaded();
+        await scene.systems['mindar-image-system'].start();
+        ui.style.display = 'none';
+      } catch (error) {
+        startBtn.disabled = false;
+        status.textContent = 'Camera access failed. Allow Camera for this site in browser settings, then try again.';
+        console.error('AR start failed', error);
+      }
+    });
+
+    const startVideo = () => video.play().catch(() => {});
 
     target.addEventListener('targetFound', () => {
       hint.classList.add('hidden');
@@ -88,8 +91,6 @@
       hint.classList.remove('hidden');
       hint.textContent = 'Point the camera at the artwork';
     });
-
-    document.addEventListener('pointerdown', startVideo, {once: true});
   </script>
 </body>
 </html>
